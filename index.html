@@ -314,6 +314,7 @@ class DinoGame {
 
     this.next_milestone = 500;
     this.milestone_flash = 0.0;
+    this.milestone_heal = 0; 
     this.perfect_flash = 0.0;
     this.perfect_count = 0;
 
@@ -1543,7 +1544,12 @@ class DinoGame {
 
     if (this.score >= this.next_milestone) {
       this.next_milestone += 500;
-      this.lives = Math.min(this.max_lives, this.lives + 2);
+
+      const heal = randint(1, 3);              // 随机 1~3 格
+      const before = this.lives;
+      this.lives = Math.min(this.max_lives, this.lives + heal);
+      this.milestone_heal = this.lives - before;   // 实际回血量（满血时为 0）
+
       this.bonus += 100;
       this.milestone_flash = 2.0;
       playSound('milestone');
@@ -2544,7 +2550,10 @@ class DinoGame {
                 'bold 18px "Courier New",monospace', '#FFD700', 'center');
     }
     if (this.milestone_flash > 0) {
-      this.text('里程碑！+2 生命  +100 分', W / 2, 135,
+      const heal_txt = this.milestone_heal > 0
+        ? '+' + this.milestone_heal + ' 生命'
+        : '已满血';
+      this.text('里程碑！' + heal_txt + '  +100 分', W / 2, 135,
                 'bold 20px "Courier New",monospace', '#FFD700', 'center');
     }
     if (this.coin_frenzy_time > 0) {
