@@ -1520,7 +1520,6 @@ class DinoGame {
     }
 
     if (this.weapon_cooldown > 0) this.weapon_cooldown = Math.max(0.0, this.weapon_cooldown - dt);
-    if (this.weapon_reload > 0) this.weapon_reload = Math.max(0.0, this.weapon_reload - dt);
     if (this.dash_time > 0) {
       this.dash_time -= dt;
       if (this.dash_time <= 0) this.dash_time = 0.0;
