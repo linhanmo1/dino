@@ -32,8 +32,12 @@ const SHIELD_DUR = 6.0, MAGNET_DUR = 8.0, SLOW_DUR = 5.0, X2_DUR = 8.0, RAINBOW_
 const DASH_DUR = 0.35, DASH_COOLDOWN = 2.2, DASH_SPEED_MUL = 2.0;
 const COMBO_TIMEOUT = 2.0;
 
-const WEAPON_MAX_AMMO = 10, WEAPON_START_AMMO = 3, WEAPON_COOLDOWN = 0.32;
-const WEAPON_RELOAD_TIME = 2.6, AMMO_PICKUP_AMOUNT = 3;
+const WEAPON_MAX_AMMO = 30;        // 携带上限 30
+const WEAPON_START_AMMO = 15;      // 初始弹药 15
+const WEAPON_RELOAD_CAP = 20;      // 自动装填最多回填到 20
+const WEAPON_COOLDOWN = 0.32;
+const WEAPON_RELOAD_TIME = 1.2;    // 每 1.2 秒自动 +1
+const AMMO_PICKUP_AMOUNT = 8; 
 const BULLET_SPEED = 900.0, BULLET_VY = -120.0;
 
 const PORTAL_COOLDOWN = 28.0, COIN_FRENZY_DUR = 5.0;
@@ -1528,11 +1532,11 @@ class DinoGame {
     }
     if (this.shake_time > 0) this.shake_time -= dt;
 
-    if (this.ammo < WEAPON_START_AMMO) {
+    if (this.ammo < WEAPON_RELOAD_CAP) {
       this.weapon_reload += dt;
       if (this.weapon_reload >= WEAPON_RELOAD_TIME) {
         this.weapon_reload = 0.0;
-        this.ammo = Math.min(WEAPON_START_AMMO, this.ammo + 1);
+        this.ammo = Math.min(WEAPON_RELOAD_CAP, this.ammo + 1);
       }
     } else {
       this.weapon_reload = 0.0;
