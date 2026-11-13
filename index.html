@@ -36,7 +36,7 @@ const WEAPON_MAX_AMMO = 30;        // 携带上限 30
 const WEAPON_START_AMMO = 15;      // 初始弹药 15
 const WEAPON_RELOAD_CAP = 20;      // 自动装填最多回填到 20
 const WEAPON_COOLDOWN = 0.32;
-const WEAPON_RELOAD_TIME = 1.2;    // 每 1.2 秒自动 +1
+const WEAPON_RELOAD_TIME = 2.0;    // 每2 秒自动 +1
 const AMMO_PICKUP_AMOUNT = 8; 
 const BULLET_SPEED = 900.0, BULLET_VY = -120.0;
 
@@ -323,7 +323,7 @@ class DinoGame {
     this.boss = null;
     this.boss_bombs = [];
     this.boss_next_time = 65.0;
-
+    this.boss_spawned = 0;   
     this.spawn_acc = 0.0;
     this.next_spawn = 650.0;
     this.coin_timer = 3.0;
@@ -824,10 +824,14 @@ class DinoGame {
 
   /* ---------- Boss ---------- */
   spawn_boss() {
+    // 第一只 10~15 血，之后 15~25 血
+    const hp = this.boss_spawned === 0 ? randint(10, 15) : randint(15, 25);
+    this.boss_spawned += 1;
     this.boss = {
       state: 'entering', sx: W + 200, sy: 150,
-      bob_t: 0.0, hp: 5, max_hp: 5, invuln: 0.0,
+      bob_t: 0.0, hp: hp, max_hp: hp, invuln: 0.0,
       throw_timer: 1.5, death_timer: 0.0,
+      life: 60.0,                              // 存活上限 60 秒（只在 active 状态计时）
     };
     playSound('boss_enter');
     this.shake(5, 0.5);
@@ -858,6 +862,14 @@ class DinoGame {
         });
       }
       if (b.invuln > 0) b.invuln = Math.max(0.0, b.invuln - dt);
+
+      // 存活计时：60 秒到点自动飞走（走 leaving 收尾，不给奖励）
+      b.life -= dt;
+      if (b.life <= 0) {
+        b.state = 'leaving';
+        this.shake(4, 0.3);
+        playSound('boss_enter');
+      }
     } else if (b.state === 'dying') {
       b.death_timer -= dt;
       if (Math.random() < 0.5) {
@@ -1077,7 +1089,7 @@ class DinoGame {
       const b = this.boss;
       if (rects_hit(db, [b.sx - 75, b.sy - 45, b.sx + 75, b.sy + 45])) {
         b.hp -= 1;
-        b.invuln = 0.8;
+        b.invuln = 0.35;
         playSound('boss_hit');
         this.spawn_particles(b.sx, b.sy, 18,
                              ['#FF5252', '#FFC107', '#ffffff'], 300, 0.7);
@@ -1384,7 +1396,7 @@ class DinoGame {
         const bs = this.boss;
         if (Math.abs(b.sx - bs.sx) < 85 && Math.abs(b.sy - bs.sy) < 55) {
           bs.hp -= 1;
-          bs.invuln = 0.8;
+          bs.invuln = 0.35;
           playSound('boss_hit');
           this.spawn_particles(bs.sx, bs.sy, 14, ['#FF5252', '#FFC107'], 250, 0.6);
           this.shake(4, 0.15);
@@ -2237,7 +2249,12 @@ class DinoGame {
     const by = 18;
     this.rect(bx - 2, by - 2, bx + bw + 2, by + 14, null, fg_hex, 1);
     if (hp_ratio > 0) this.rect(bx, by, bx + bw * hp_ratio, by + 12, '#FF5252');
-    this.text('B O S S', W / 2, by + 28, 'bold 11px "Courier New",monospace', fg_hex, 'center');
+        this.text('B O S S', W / 2, by + 28, 'bold 11px "Courier New",monospace', fg_hex, 'center');
+    if (b.state === 'active') {
+      const left = Math.max(0, b.life).toFixed(0);
+      this.text('逃跑倒计时 ' + left + 's', W / 2, by + 44,
+                '10px "Courier New",monospace', fg_hex, 'center');
+    }
   }
 
   draw_obstacle(ob, sx, fg_hex, bg_hex) {
