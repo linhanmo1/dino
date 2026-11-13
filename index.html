@@ -2654,51 +2654,62 @@ class DinoGame {
                 'bold 18px "Courier New",monospace', '#FFC107', 'center');
     }
 
-        if (this.state === 'ready') {
-      this.text('小 恐 龙 大 冒 险', W / 2, 120,
+            if (this.state === 'ready') {
+      this.text('小 恐 龙 大 冒 险', W / 2, 100,
                 'bold 30px "Courier New",monospace', fg_hex, 'center');
-      this.text('按 空格 开始游戏', W / 2, 155,
+      this.text('按 空格 开始游戏', W / 2, 135,
                 '16px "Courier New",monospace', fg_hex, 'center');
 
-      this.text('角色（1/2/3）        难度（4/5/6）', W / 2, 190,
-                '12px "Courier New",monospace', fg_hex, 'center');
-
-      // 角色框
+      // 角色标题
+      this.text('角色（1/2/3）', 320, 175,
+                '14px "Courier New",monospace', fg_hex, 'center');
+      
+      // 角色选择框
       for (let i = 0; i < DINO_CHARACTERS.length; i++) {
         const ch = DINO_CHARACTERS[i];
-        const cx = W / 2 - 160 + i * 105;
-        const cy = 222;
+        const cx = 220 + i * 100;  // 左半边：220, 320, 420
+        const cy = 210;
         const sel = i === this.dino_type;
         this.rect(cx - 45, cy - 16, cx + 45, cy + 16, null, sel ? '#FFC107' : fg_hex, sel ? 3 : 1);
         this.text((i + 1) + '.' + ch.name, cx, cy,
                   'bold 12px "Courier New",monospace', fg_hex, 'center');
       }
 
-      // 难度框
+      // 难度标题
+      this.text('难度（4/5/6）', 720, 175,
+                '14px "Courier New",monospace', fg_hex, 'center');
+
+      // 难度选择框
       const diffKeys = ['easy', 'normal', 'hard'];
       for (let i = 0; i < diffKeys.length; i++) {
         const d = DIFFICULTY[diffKeys[i]];
-        const cx = W / 2 + 100 + i * 88;
-        const cy = 222;
+        const cx = 620 + i * 100;  // 右半边：620, 720, 820
+        const cy = 210;
         const sel = this.difficulty === diffKeys[i];
-        this.rect(cx - 40, cy - 16, cx + 40, cy + 16, null, sel ? d.color : fg_hex, sel ? 3 : 1);
+        this.rect(cx - 45, cy - 16, cx + 45, cy + 16, null, sel ? d.color : fg_hex, sel ? 3 : 1);
         this.text(d.label, cx, cy,
                   'bold 12px "Courier New",monospace', sel ? d.color : fg_hex, 'center');
       }
 
+      // 底部操作和说明
       this.text('空格/↑ 跳跃  ↓ 下蹲  Shift/X 冲刺  J/K 射击  P 暂停  R 重开',
-                W / 2, 268, '11px "Courier New",monospace', fg_hex, 'center');
+                W / 2, 260, '12px "Courier New",monospace', fg_hex, 'center');
       this.text('弹跳板 · 移动平台 · 落石 · 地刺 · 水面 · 完美跳跃子弹时间 · 彩虹币无敌',
-                W / 2, 292, '11px "Courier New",monospace', fg_hex, 'center');
+                W / 2, 285, '12px "Courier New",monospace', fg_hex, 'center');
+      
+      // 当前难度详细数据
       this.text('当前难度：' + this.diff.label + '  最高 ' + this.cur_best() +
                 '  生命 ' + this.diff.startLives + '/' + this.diff.maxLives +
                 '  Boss ' + this.diff.bossHpFirst[0] + '~' + this.diff.bossHpLater[1] + ' 血',
-                W / 2, 318, '11px "Courier New",monospace', this.diff.color, 'center');
-                const achSet = this.unlocked_achievements[this.difficulty];
+                W / 2, 315, '13px "Courier New",monospace', this.diff.color, 'center');
+      
+      // 成就统计
+      const achSet = this.unlocked_achievements[this.difficulty];
       const achTotal = Object.keys(ACHIEVEMENTS).length;
-      this.text('本难度成就 ' + achSet.size + '/' + achTotal, W / 2, 338,
-                '11px "Courier New",monospace', fg_hex, 'center');
-    } else if (this.state === 'gameover') {
+      this.text('本难度成就 ' + achSet.size + '/' + achTotal, W / 2, 340,
+                '13px "Courier New",monospace', fg_hex, 'center');
+
+    } else if (this.state === 'gameover') {  // ← 这里删掉了原来重复的 else if
       this.text('G A M E   O V E R', W / 2, 90,
                 'bold 30px "Courier New",monospace', fg_hex, 'center');
       this.text('得分 ' + this.score + '      最高 ' + this.cur_best(), W / 2, 138,
