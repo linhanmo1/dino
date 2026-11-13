@@ -41,7 +41,47 @@ const AMMO_PICKUP_AMOUNT = 8;
 const BULLET_SPEED = 900.0, BULLET_VY = -120.0;
 
 const PORTAL_COOLDOWN = 28.0, COIN_FRENZY_DUR = 5.0;
-
+const DIFFICULTY = {
+  easy: {
+    label: '简单', color: '#4CAF50',
+    lives: 5, maxLives: 7,
+    healMin: 1, healMax: 3,
+    speedAccel: 11.0, maxSpeed: 1050.0,
+    spawnMin: 0.95, spawnMax: 1.80,
+    bossHpFirst: [10, 15], bossHpLater: [15, 25],
+    bossInvuln: 0.35, bossBombMin: 1.3, bossBombMax: 2.0,
+    ammoStart: 15, ammoMax: 30, ammoReloadCap: 20,
+    reloadTime: 2.0, ammoPickup: 8, weaponCooldown: 0.32,
+    dashCooldown: 2.2,
+    minionDelay: 20, minionRate: 0.9,
+  },
+  normal: {
+    label: '中等', color: '#FF9800',
+    lives: 4, maxLives: 5,
+    healMin: 1, healMax: 2,
+    speedAccel: 12.0, maxSpeed: 1100.0,
+    spawnMin: 0.82, spawnMax: 1.55,
+    bossHpFirst: [15, 20], bossHpLater: [20, 30],
+    bossInvuln: 0.30, bossBombMin: 1.1, bossBombMax: 1.7,
+    ammoStart: 10, ammoMax: 20, ammoReloadCap: 12,
+    reloadTime: 2.5, ammoPickup: 5, weaponCooldown: 0.38,
+    dashCooldown: 2.6,
+    minionDelay: 15, minionRate: 1.3,
+  },
+  hard: {
+    label: '困难', color: '#F44336',
+    lives: 3, maxLives: 4,
+    healMin: 0, healMax: 1,
+    speedAccel: 13.0, maxSpeed: 1150.0,
+    spawnMin: 0.70, spawnMax: 1.30,
+    bossHpFirst: [20, 25], bossHpLater: [25, 40],
+    bossInvuln: 0.25, bossBombMin: 0.9, bossBombMax: 1.4,
+    ammoStart: 6, ammoMax: 15, ammoReloadCap: 8,
+    reloadTime: 3.0, ammoPickup: 3, weaponCooldown: 0.45,
+    dashCooldown: 3.0,
+    minionDelay: 10, minionRate: 1.8,
+  },
+};
 const DINO_CHARACTERS = [
   { name: '经典', speed_mul: 1.0,  jump_mul: 1.0,  color: null },
   { name: '疾风', speed_mul: 1.08, jump_mul: 0.95, color: '#4FC3F7' },
@@ -188,6 +228,7 @@ class DinoGame {
     this.load_save();
     this.init_world();
     this.dino_type = 0;
+    this.difficulty = 'easy'; 
     this.reset();
     this.bind_keys();
     this.last_time = performance.now() / 1000;
@@ -217,16 +258,33 @@ class DinoGame {
   }
 
   /* ---------- 存档 ---------- */
-  load_save() {
-    this.best = 0;
-    this.unlocked_achievements = new Set();
+    load_save() {
+    this.best = { easy: 0, normal: 0, hard: 0 };
+    this.unlocked_achievements = { easy: new Set(), normal: new Set(), hard: new Set() };
     this.total_coins = 0;
     try {
       const raw = localStorage.getItem('dino_save');
       if (raw) {
         const data = JSON.parse(raw);
-        this.best = data.best || 0;
-        this.unlocked_achievements = new Set(data.achievements || []);
+
+        // best 迁移：旧存档是数字，归入简单难度
+        if (typeof data.best === 'number') {
+          this.best.easy = data.best || 0;
+        } else if (data.best && typeof data.best === 'object') {
+          this.best.easy   = data.best.easy   || 0;
+          this.best.normal = data.best.normal || 0;
+          this.best.hard   = data.best.hard   || 0;
+        }
+
+        const ach = data.achievements;
+        if (Array.isArray(ach)) {
+          // 旧格式：数组，全部归入简单难度
+          this.unlocked_achievements.easy = new Set(ach);
+        } else if (ach && typeof ach === 'object') {
+          this.unlocked_achievements.easy   = new Set(ach.easy   || []);
+          this.unlocked_achievements.normal = new Set(ach.normal || []);
+          this.unlocked_achievements.hard   = new Set(ach.hard   || []);
+        }
         this.total_coins = data.total_coins || 0;
       }
     } catch (e) { /* ignore */ }
@@ -235,7 +293,11 @@ class DinoGame {
     try {
       localStorage.setItem('dino_save', JSON.stringify({
         best: this.best,
-        achievements: Array.from(this.unlocked_achievements).sort(),
+        achievements: {
+          easy:   Array.from(this.unlocked_achievements.easy).sort(),
+          normal: Array.from(this.unlocked_achievements.normal).sort(),
+          hard:   Array.from(this.unlocked_achievements.hard).sort(),
+        },
         total_coins: this.total_coins,
       }));
     } catch (e) { /* ignore */ }
@@ -256,6 +318,7 @@ class DinoGame {
   }
 
   reset() {
+    this.diff = DIFFICULTY[this.difficulty];   // ← 新增
     this.state = 'ready';
     this.paused = false;
     this.distance = 0.0;
@@ -288,7 +351,7 @@ class DinoGame {
     this.minions = [];
     this.portals = [];
     this.ammo_pickups = [];
-    this.ammo = WEAPON_START_AMMO;
+    this.ammo = this.diff.ammoStart;
     this.weapon_cooldown = 0.0;
     this.weapon_reload = 0.0;
     this.weapon_kills = 0;
@@ -308,8 +371,8 @@ class DinoGame {
     this.next_trap = 1400.0;
     this.rainbow_timer = rand(14.0, 20.0);
 
-    this.lives = 5;
-    this.max_lives = 7;
+    this.lives = this.diff.startLives;
+    this.max_lives = this.diff.maxLives;
     this.invincible = 0.0;
 
     this.next_milestone = 500;
@@ -382,7 +445,9 @@ class DinoGame {
     const c = DINO_CHARACTERS[this.dino_type];
     return [c.speed_mul, c.jump_mul];
   }
-
+  cur_best() {
+    return this.best[this.difficulty] || 0;
+  }
   get_colors() {
     const n = this.night;
     const bg = mix(DAY_BG, NIGHT_BG, n);
@@ -397,8 +462,9 @@ class DinoGame {
 
   /* ---------- 成就 ---------- */
   unlock_achievement(key) {
-    if (this.unlocked_achievements.has(key)) return;
-    this.unlocked_achievements.add(key);
+    const set = this.unlocked_achievements[this.difficulty];
+    if (set.has(key)) return;
+    set.add(key);
     this.achievement_queue.push(key);
     playSound('achievement');
     this.save_progress();
@@ -447,6 +513,9 @@ class DinoGame {
       else if (k === '1') this.select_char(0);
       else if (k === '2') this.select_char(1);
       else if (k === '3') this.select_char(2);
+            else if (k === '4') this.set_difficulty('easy');
+      else if (k === '5') this.set_difficulty('normal');
+      else if (k === '6') this.set_difficulty('hard');
     });
     window.addEventListener('keyup', (e) => {
       const k = e.key;
@@ -457,7 +526,12 @@ class DinoGame {
   }
 
   select_char(idx) { if (this.state === 'ready') this.dino_type = idx; }
-
+  set_difficulty(d) {
+    if (this.state === 'ready') {
+      this.difficulty = d;
+      this.reset();          // 重新应用生命/弹药等参数，state 仍是 ready
+    }
+  }
   on_jump() {
     if (this.paused || this.jump_held) return;
     this.jump_held = true;
@@ -493,7 +567,7 @@ class DinoGame {
   do_dash() {
     if (this.state !== 'playing' || this.dash_cooldown > 0 || this.dash_time > 0) return;
     this.dash_time = DASH_DUR;
-    this.dash_cooldown = DASH_COOLDOWN;
+    this.dash_cooldown = this.diff.dashCooldown;
     this.spawn_particles(DINO_X + 25, this.dino_y - 25, 10, ['#00E5FF', '#ffffff'], 220, 0.4);
     playSound('dash');
   }
@@ -501,7 +575,7 @@ class DinoGame {
   do_fire() {
     if (this.state !== 'playing' || this.weapon_cooldown > 0 || this.ammo <= 0) return;
     this.ammo -= 1;
-    this.weapon_cooldown = WEAPON_COOLDOWN;
+    this.dash_cooldown = this.diff.dashCooldown;
     const sy = this.ducking ? (this.dino_y - 20) : (this.dino_y - 40);
     this.bullets.push({ sx: DINO_X + 50, sy: sy });
     this.spawn_particles(DINO_X + 55, sy, 4, ['#FFC107', '#FF7043'], 120, 0.2);
@@ -825,7 +899,8 @@ class DinoGame {
   /* ---------- Boss ---------- */
   spawn_boss() {
     // 第一只 10~15 血，之后 15~25 血
-    const hp = this.boss_spawned === 0 ? randint(10, 15) : randint(15, 25);
+    const range = this.boss_spawned === 0 ? this.diff.bossHpFirst : this.diff.bossHpLater;
+    const hp = randint(range[0], range[1]);
     this.boss_spawned += 1;
     this.boss = {
       state: 'entering', sx: W + 200, sy: 150,
@@ -855,7 +930,7 @@ class DinoGame {
       b.sy = 150 + Math.sin(b.bob_t * 2.5) * 30;
       b.throw_timer -= dt;
       if (b.throw_timer <= 0) {
-        b.throw_timer = rand(1.3, 2.0);
+        b.throw_timer = rand(this.diff.bossBombMin, this.diff.bossBombMax);
         this.boss_bombs.push({
           sx: b.sx - 30, sy: b.sy + 35,
           vx: -160 + rand(-40, 40), vy: 30,
@@ -931,7 +1006,7 @@ class DinoGame {
   game_over() {
     this.state = 'gameover';
     this.total_coins += this.stats.coins;
-    if (this.score > this.best) this.best = this.score;
+    if (this.score > this.best[this.difficulty]) this.best[this.difficulty] = this.score;
     this.save_progress();
   }
 
@@ -1089,7 +1164,7 @@ class DinoGame {
       const b = this.boss;
       if (rects_hit(db, [b.sx - 75, b.sy - 45, b.sx + 75, b.sy + 45])) {
         b.hp -= 1;
-        b.invuln = 0.35;
+        bs.invuln = this.diff.bossInvuln;
         playSound('boss_hit');
         this.spawn_particles(b.sx, b.sy, 18,
                              ['#FF5252', '#FFC107', '#ffffff'], 300, 0.7);
@@ -1119,7 +1194,7 @@ class DinoGame {
       const sx = ap.wx - this.distance;
       const y = ap.y + Math.sin(this.frame * 0.1 + ap.phase) * 5;
       if (point_in_rect(sx, y, db, 16)) {
-        this.ammo = Math.min(WEAPON_MAX_AMMO, this.ammo + AMMO_PICKUP_AMOUNT);
+        this.ammo = Math.min(this.diff.ammoMax, this.ammo + this.diff.ammoPickup);
         this.ammo_pickups.splice(i, 1);
         this.spawn_particles(sx, y, 10, ['#FFC107', '#FFE9A0'], 180, 0.4);
       }
@@ -1508,7 +1583,7 @@ class DinoGame {
 
     const mul_c = this.char_mul();
     const sm = mul_c[0], jm = mul_c[1];
-    const base_speed = Math.min(MAX_SPEED, (BASE_SPEED + this.elapsed * SPEED_ACCEL) * sm);
+    const base_speed = Math.min(this.diff.maxSpeed, (BASE_SPEED + this.elapsed * this.diff.speedAccel) * sm);
     let mul = 1.0;
     if (this.dash_time > 0) mul *= DASH_SPEED_MUL;
     if (this.slow_time > 0) mul *= 0.6;
@@ -1520,7 +1595,7 @@ class DinoGame {
     if (this.x2_time > 0) base_score *= 2;
     if (this.rainbow_time > 0) base_score *= 3;
     this.score = base_score + this.bonus;
-    if (this.score > this.best) this.best = this.score;
+    if (this.score > this.best[this.difficulty]) this.best[this.difficulty] = this.score;
 
     this.night = 0.5 - 0.5 * Math.cos(this.elapsed / 7.0);
 
@@ -1544,11 +1619,11 @@ class DinoGame {
     }
     if (this.shake_time > 0) this.shake_time -= dt;
 
-    if (this.ammo < WEAPON_RELOAD_CAP) {
+    if (this.ammo < this.diff.ammoReloadCap) {
       this.weapon_reload += dt;
-      if (this.weapon_reload >= WEAPON_RELOAD_TIME) {
+      if (this.weapon_reload >= this.diff.reloadTime) {
         this.weapon_reload = 0.0;
-        this.ammo = Math.min(WEAPON_RELOAD_CAP, this.ammo + 1);
+        this.ammo = Math.min(this.diff.ammoReloadCap, this.ammo + 1);
       }
     } else {
       this.weapon_reload = 0.0;
@@ -1557,7 +1632,7 @@ class DinoGame {
     if (this.score >= this.next_milestone) {
       this.next_milestone += 500;
 
-      const heal = randint(1, 3);              // 随机 1~3 格
+      const heal = randint(this.diff.healMin, this.diff.healMax);           // 随机 1~3 格
       const before = this.lives;
       this.lives = Math.min(this.max_lives, this.lives + heal);
       this.milestone_heal = this.lives - before;   // 实际回血量（满血时为 0）
@@ -1665,7 +1740,7 @@ class DinoGame {
       this.spawn_acc += dx;
       if (this.spawn_acc >= this.next_spawn) {
         this.spawn_acc = 0.0;
-        this.next_spawn = this.speed * rand(0.95, 1.80);
+        this.next_spawn = this.speed * rand(this.diff.spawnMin, this.diff.spawnMax);
         this.spawn_obstacle();
       }
       this.pit_acc += dx;
@@ -1701,7 +1776,7 @@ class DinoGame {
       }
     }
 
-    if (this.elapsed > 20 && Math.random() < dt * 0.9) this.spawn_minion();
+    if (this.elapsed > this.diff.minionDelay && Math.random() < dt * this.diff.minionRate) this.spawn_minion();
     this.portal_timer -= dt;
     if (this.portal_timer <= 0) {
       this.portal_timer = PORTAL_COOLDOWN;
@@ -2515,7 +2590,7 @@ class DinoGame {
 
   draw_ui(fg_hex) {
     const c = this.ctx;
-    this.text('HI ' + String(this.best).padStart(5, '0') + '    ' +
+    this.text('HI ' + String(this.cur_best()).padStart(5, '0') + '    ' +
               String(this.score).padStart(5, '0'),
               W - 24, 32, 'bold 17px "Courier New",monospace', fg_hex, 'right');
     this.text('● ' + this.stats.coins + '    ◆ ' + this.stats.gems,
@@ -2543,12 +2618,12 @@ class DinoGame {
     const ammo_y = 108;
     this.rect(20, ammo_y - 8, 70, ammo_y + 6, null, fg_hex, 1);
     if (this.ammo > 0) {
-      this.rect(20, ammo_y - 8, 20 + 50 * (this.ammo / WEAPON_MAX_AMMO), ammo_y + 6, '#FFC107');
+      this.rect(20, ammo_y - 8, 20 + 50 * (this.ammo / this.diff.ammoMax), ammo_y + 6, '#FFC107');
     }
-    this.text('弹药 ' + this.ammo + '/' + WEAPON_MAX_AMMO + '  J/K', 78, ammo_y - 1,
+    this.text('弹药 ' + this.ammo + '/' + this.diff.ammoMax + '  J/K', 78, ammo_y - 1,
               '10px "Courier New",monospace', fg_hex, 'left');
 
-    const cd_ratio = DASH_COOLDOWN > 0 ? Math.max(0.0, 1.0 - this.dash_cooldown / DASH_COOLDOWN) : 1.0;
+    const cd_ratio = this.diff.dashCooldown > 0 ? Math.max(0.0, 1.0 - this.dash_cooldown / this.diff.dashCooldown) : 1.0;
     const bar_y = 130;
     const bar_color = cd_ratio >= 1.0 ? '#4CAF50' : '#FFA726';
     this.rect(20, bar_y - 8, 70, bar_y + 6, null, fg_hex, 1);
@@ -2567,9 +2642,10 @@ class DinoGame {
                 'bold 18px "Courier New",monospace', '#FFD700', 'center');
     }
     if (this.milestone_flash > 0) {
-      const heal_txt = this.milestone_heal > 0
-        ? '+' + this.milestone_heal + ' 生命'
-        : '已满血';
+      let heal_txt;
+      if (this.milestone_heal > 0) heal_txt = '+' + this.milestone_heal + ' 生命';
+      else if (this.lives >= this.max_lives) heal_txt = '已满血';
+      else heal_txt = '未回血';
       this.text('里程碑！' + heal_txt + '  +100 分', W / 2, 135,
                 'bold 20px "Courier New",monospace', '#FFD700', 'center');
     }
@@ -2578,32 +2654,54 @@ class DinoGame {
                 'bold 18px "Courier New",monospace', '#FFC107', 'center');
     }
 
-    if (this.state === 'ready') {
-      this.text('小 恐 龙 大 冒 险', W / 2, 130,
+        if (this.state === 'ready') {
+      this.text('小 恐 龙 大 冒 险', W / 2, 120,
                 'bold 30px "Courier New",monospace', fg_hex, 'center');
-      this.text('按 空格 开始游戏', W / 2, 168,
+      this.text('按 空格 开始游戏', W / 2, 155,
                 '16px "Courier New",monospace', fg_hex, 'center');
-      this.text('选择角色（按 1/2/3）', W / 2, 205,
+
+      this.text('角色（1/2/3）        难度（4/5/6）', W / 2, 190,
                 '12px "Courier New",monospace', fg_hex, 'center');
+
+      // 角色框
       for (let i = 0; i < DINO_CHARACTERS.length; i++) {
         const ch = DINO_CHARACTERS[i];
-        const cx = W / 2 + (i - 1) * 130;
-        const cy = 235;
+        const cx = W / 2 - 160 + i * 105;
+        const cy = 222;
         const sel = i === this.dino_type;
-        this.rect(cx - 55, cy - 20, cx + 55, cy + 20, null, sel ? '#FFC107' : fg_hex, sel ? 3 : 1);
+        this.rect(cx - 45, cy - 16, cx + 45, cy + 16, null, sel ? '#FFC107' : fg_hex, sel ? 3 : 1);
         this.text((i + 1) + '.' + ch.name, cx, cy,
                   'bold 12px "Courier New",monospace', fg_hex, 'center');
       }
+
+      // 难度框
+      const diffKeys = ['easy', 'normal', 'hard'];
+      for (let i = 0; i < diffKeys.length; i++) {
+        const d = DIFFICULTY[diffKeys[i]];
+        const cx = W / 2 + 100 + i * 88;
+        const cy = 222;
+        const sel = this.difficulty === diffKeys[i];
+        this.rect(cx - 40, cy - 16, cx + 40, cy + 16, null, sel ? d.color : fg_hex, sel ? 3 : 1);
+        this.text(d.label, cx, cy,
+                  'bold 12px "Courier New",monospace', sel ? d.color : fg_hex, 'center');
+      }
+
       this.text('空格/↑ 跳跃  ↓ 下蹲  Shift/X 冲刺  J/K 射击  P 暂停  R 重开',
-                W / 2, 275, '11px "Courier New",monospace', fg_hex, 'center');
-      this.text('弹跳板弹飞 · 移动平台会上下移动 · 小心头顶落石和地面弹刺 · 水面掉入会扣血',
-                W / 2, 295, '11px "Courier New",monospace', fg_hex, 'center');
-      this.text('完美跳跃触发子弹时间 · 彩虹币触发无敌加速 · 金币狂热进行中',
-                W / 2, 313, '11px "Courier New",monospace', fg_hex, 'center');
-    } else if (this.state === 'gameover') {
+                W / 2, 268, '11px "Courier New",monospace', fg_hex, 'center');
+      this.text('弹跳板 · 移动平台 · 落石 · 地刺 · 水面 · 完美跳跃子弹时间 · 彩虹币无敌',
+                W / 2, 292, '11px "Courier New",monospace', fg_hex, 'center');
+      this.text('当前难度：' + this.diff.label + '  最高 ' + this.cur_best() +
+                '  生命 ' + this.diff.startLives + '/' + this.diff.maxLives +
+                '  Boss ' + this.diff.bossHpFirst[0] + '~' + this.diff.bossHpLater[1] + ' 血',
+                W / 2, 318, '11px "Courier New",monospace', this.diff.color, 'center');
+                const achSet = this.unlocked_achievements[this.difficulty];
+      const achTotal = Object.keys(ACHIEVEMENTS).length;
+      this.text('本难度成就 ' + achSet.size + '/' + achTotal, W / 2, 338,
+                '11px "Courier New",monospace', fg_hex, 'center');
+    } else if (this.state === 'gameover') { else if (this.state === 'gameover') {
       this.text('G A M E   O V E R', W / 2, 90,
                 'bold 30px "Courier New",monospace', fg_hex, 'center');
-      this.text('得分 ' + this.score + '      最高 ' + this.best, W / 2, 138,
+      this.text('得分 ' + this.score + '      最高 ' + this.cur_best(), W / 2, 138,
                 'bold 18px "Courier New",monospace', fg_hex, 'center');
       this.text('金币 ' + this.stats.coins + '    宝石 ' + this.stats.gems +
                 '    Boss ' + this.stats.bosses + '    小怪 ' + this.stats.minions,
