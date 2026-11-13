@@ -44,7 +44,7 @@ const PORTAL_COOLDOWN = 28.0, COIN_FRENZY_DUR = 5.0;
 const DIFFICULTY = {
   easy: {
     label: '简单', color: '#4CAF50',
-    lives: 5, maxLives: 7,
+    startLives: 5, maxLives: 7,
     healMin: 1, healMax: 3,
     speedAccel: 11.0, maxSpeed: 1050.0,
     spawnMin: 0.95, spawnMax: 1.80,
@@ -57,7 +57,7 @@ const DIFFICULTY = {
   },
   normal: {
     label: '中等', color: '#FF9800',
-    lives: 4, maxLives: 5,
+    startLives: 4, maxLives: 5,
     healMin: 1, healMax: 2,
     speedAccel: 12.0, maxSpeed: 1100.0,
     spawnMin: 0.82, spawnMax: 1.55,
@@ -70,7 +70,7 @@ const DIFFICULTY = {
   },
   hard: {
     label: '困难', color: '#F44336',
-    lives: 3, maxLives: 4,
+    startLives: 3, maxLives: 4,
     healMin: 0, healMax: 1,
     speedAccel: 13.0, maxSpeed: 1150.0,
     spawnMin: 0.70, spawnMax: 1.30,
@@ -575,7 +575,7 @@ class DinoGame {
   do_fire() {
     if (this.state !== 'playing' || this.weapon_cooldown > 0 || this.ammo <= 0) return;
     this.ammo -= 1;
-    this.dash_cooldown = this.diff.dashCooldown;
+    this.weapon_cooldown = this.diff.weaponCooldown; 
     const sy = this.ducking ? (this.dino_y - 20) : (this.dino_y - 40);
     this.bullets.push({ sx: DINO_X + 50, sy: sy });
     this.spawn_particles(DINO_X + 55, sy, 4, ['#FFC107', '#FF7043'], 120, 0.2);
@@ -1164,7 +1164,7 @@ class DinoGame {
       const b = this.boss;
       if (rects_hit(db, [b.sx - 75, b.sy - 45, b.sx + 75, b.sy + 45])) {
         b.hp -= 1;
-        bs.invuln = this.diff.bossInvuln;
+        b.invuln = this.diff.bossInvuln;
         playSound('boss_hit');
         this.spawn_particles(b.sx, b.sy, 18,
                              ['#FF5252', '#FFC107', '#ffffff'], 300, 0.7);
@@ -1471,7 +1471,7 @@ class DinoGame {
         const bs = this.boss;
         if (Math.abs(b.sx - bs.sx) < 85 && Math.abs(b.sy - bs.sy) < 55) {
           bs.hp -= 1;
-          bs.invuln = 0.35;
+          bs.invuln = this.diff.bossInvuln;
           playSound('boss_hit');
           this.spawn_particles(bs.sx, bs.sy, 14, ['#FF5252', '#FFC107'], 250, 0.6);
           this.shake(4, 0.15);
@@ -2698,7 +2698,7 @@ class DinoGame {
       const achTotal = Object.keys(ACHIEVEMENTS).length;
       this.text('本难度成就 ' + achSet.size + '/' + achTotal, W / 2, 338,
                 '11px "Courier New",monospace', fg_hex, 'center');
-    } else if (this.state === 'gameover') { else if (this.state === 'gameover') {
+    } else if (this.state === 'gameover') {
       this.text('G A M E   O V E R', W / 2, 90,
                 'bold 30px "Courier New",monospace', fg_hex, 'center');
       this.text('得分 ' + this.score + '      最高 ' + this.cur_best(), W / 2, 138,
